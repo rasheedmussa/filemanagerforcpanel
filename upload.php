@@ -2,13 +2,6 @@
 // upload.php - Handle file uploads via AJAX
 require_once 'config.php';
 
-if (!isLoggedIn()) {
-    http_response_code(403);
-    echo json_encode(['error' => 'Not authenticated']);
-    exit;
-}
-
-$user = getUser();
 $uploadDir = 'uploads/';
 
 header('Content-Type: application/json');
@@ -17,14 +10,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $response = ['success' => false, 'message' => ''];
     
     try {
-        // Check if database is available (optional)
-        $dbAvailable = false;
-        try {
-            $db = getDB();
-            $dbAvailable = true;
-        } catch (Exception $e) {
-            $dbAvailable = false;
-        }
         
         // Handle folder upload
         if (isset($_POST['folderUpload']) && $_POST['folderUpload'] === 'true') {

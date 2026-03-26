@@ -2,20 +2,9 @@
 // dashboard.php - Main file manager dashboard
 require_once 'config.php';
 
-// Check if authentication is enabled (database available)
-$authEnabled = false;
-try {
-    $db = getDB();
-    $authEnabled = true;
-    if (!isLoggedIn()) {
-        header('Location: login.php');
-        exit;
-    }
-    $user = getUser();
-} catch (Exception $e) {
-    // No authentication - proceed without login
-    $authEnabled = false;
-}
+// Get current directory from URL parameter
+$currentDir = isset($_GET['dir']) ? trim($_GET['dir'], '/') : '';
+$currentPath = $currentDir ? "/$currentDir" : '';
 
 // Get current directory from URL parameter
 $currentDir = isset($_GET['dir']) ? trim($_GET['dir'], '/') : '';
@@ -72,12 +61,7 @@ if ($currentDir) {
                 </div>
             </div>
             <div class="header-right">
-                <?php if ($authEnabled): ?>
-                    <span>Welcome, <?php echo htmlspecialchars($user['username']); ?></span>
-                    <a href="logout.php" class="btn btn-secondary">Logout</a>
-                <?php else: ?>
-                    <span>File Manager (No Authentication)</span>
-                <?php endif; ?>
+                <span>File Manager (Temporary Uploads)</span>
             </div>
         </header>
 
