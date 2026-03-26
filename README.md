@@ -46,7 +46,7 @@ Unasaidia dark mode, lugha mbili (Kiswahili & English), drag-and-drop upload, na
 
 ```bash
 # 1. Clone au pakia mradi kwenye seva yako
-git clone https://github.com/yourname/tembodrive.git
+git clone https://github.com/rasheedmussa/TemboDrive.git
 
 # 2. Nenda kwenye folda ya mradi
 cd tembodrive
