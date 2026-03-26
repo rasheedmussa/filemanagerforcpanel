@@ -2,34 +2,39 @@
 // upload.php - Handle file uploads via AJAX
 require_once 'config.php';
 
-$uploadDir = 'uploads/';
-
 header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $response = ['success' => false, 'message' => ''];
-    
+
     try {
-        
+        // Build target directory from currentDir param
+        $currentDir = trim($_POST['currentDir'] ?? '', '/');
+        if ($currentDir && !preg_match('/^[a-zA-Z0-9_\-\.\/]+$/', $currentDir)) {
+            throw new Exception('Invalid directory');
+        }
+        $uploadDir = 'uploads/' . ($currentDir ? $currentDir . '/' : '');
+        if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+
         // Handle folder upload
         if (isset($_POST['folderUpload']) && $_POST['folderUpload'] === 'true') {
             $files = $_FILES['files'] ?? [];
-            
+
             if (empty($files['name'])) {
                 throw new Exception('No files uploaded');
             }
-            
+
             $uploadedFiles = [];
             $createdFolders = [];
-            
+
             // Process each file
             for ($i = 0; $i < count($files['name']); $i++) {
                 $originalName = $files['name'][$i];
                 $tmpName = $files['tmp_name'][$i];
                 $webkitRelativePath = $_POST['webkitRelativePath'][$i] ?? '';
-                
+
                 if (empty($webkitRelativePath)) continue;
-                
+
                 // Create directory structure
                 $relativePath = dirname($webkitRelativePath);
                 if ($relativePath !== '.') {
@@ -39,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $createdFolders[] = $fullDirPath;
                     }
                 }
-                
+
                 // Move file
                 $filePath = $uploadDir . $webkitRelativePath;
                 if (move_uploaded_file($tmpName, $filePath)) {

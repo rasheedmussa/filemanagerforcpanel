@@ -73,4 +73,12 @@ function getFileIcon($filename, $isFolder = false) {
     ];
     return $icons[$ext] ?? '📄';
 }
+
+// Auth stubs — replace with real login system when ready
+function isLoggedIn() {
+    return true;
+}
+function getUser() {
+    return ['name' => 'Admin', 'role' => 'admin'];
+}
 ?>

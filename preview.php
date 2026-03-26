@@ -1,60 +1,80 @@
 <?php
-// preview.php - Preview file
+// preview.php — Preview a file (image, PDF, text, video, audio)
 require_once 'config.php';
-
-if (!isLoggedIn()) {
-    http_response_code(403);
-    exit('Not authenticated');
-}
-
-$user = getUser();
 
 $filePath = trim($_GET['path'] ?? '');
 
-if (empty($filePath)) {
-    http_response_code(400);
-    exit('Invalid file path');
-}
+if (empty($filePath)) { http_response_code(400); exit('Invalid path'); }
 
-// Security check - ensure file is within uploads directory
-$realPath = realpath($filePath);
-$uploadDir = realpath('uploads/');
-if (!$realPath || strpos($realPath, $uploadDir) !== 0) {
-    http_response_code(403);
-    exit('Access denied');
-}
+$uploadRoot = realpath(UPLOAD_DIR);
+$realPath   = realpath(UPLOAD_DIR . ltrim($filePath, '/'));
+if (!$realPath) $realPath = realpath($filePath); // legacy calls with full relative path
 
-if (!file_exists($filePath)) {
-    http_response_code(404);
-    exit('File not found');
-}
+if (!$realPath || strpos($realPath, $uploadRoot) !== 0) { http_response_code(403); exit('Access denied'); }
+if (!is_file($realPath)) { http_response_code(404); exit('Not found'); }
 
-$fileType = mime_content_type($filePath);
-$filename = basename($filePath);
+$filePath  = $realPath;
+$fileType  = mime_content_type($filePath);
+$filename  = basename($filePath);
+$ext       = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+$fileSize  = filesize($filePath);
 
-$ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-
+// ── Images ──────────────────────────────────────────────────────
 if (strpos($fileType, 'image/') === 0) {
-    // Image preview
     header('Content-Type: ' . $fileType);
+    header('Content-Length: ' . $fileSize);
     readfile($filePath);
+
+// ── PDF ─────────────────────────────────────────────────────────
 } elseif ($fileType === 'application/pdf') {
-    // PDF preview
     header('Content-Type: application/pdf');
+    header('Content-Length: ' . $fileSize);
     readfile($filePath);
-} elseif ($ext === 'txt') {
-    // Text preview
+
+// ── Video & Audio (with range-request support) ───────────────────
+} elseif (strpos($fileType, 'video/') === 0 || strpos($fileType, 'audio/') === 0) {
+    header('Accept-Ranges: bytes');
+    header('Content-Type: ' . $fileType);
+
+    if (!empty($_SERVER['HTTP_RANGE'])) {
+        preg_match('/bytes=(\d+)-(\d*)/', $_SERVER['HTTP_RANGE'], $m);
+        $start  = (int)$m[1];
+        $end    = isset($m[2]) && $m[2] !== '' ? (int)$m[2] : $fileSize - 1;
+        $length = $end - $start + 1;
+
+        http_response_code(206);
+        header("Content-Range: bytes $start-$end/$fileSize");
+        header("Content-Length: $length");
+
+        $fp = fopen($filePath, 'rb');
+        fseek($fp, $start);
+        $rem = $length;
+        while ($rem > 0 && !feof($fp)) {
+            $chunk = (int)min(65536, $rem);
+            echo fread($fp, $chunk);
+            $rem -= $chunk;
+        }
+        fclose($fp);
+    } else {
+        header('Content-Length: ' . $fileSize);
+        readfile($filePath);
+    }
+
+// ── Text / Code ──────────────────────────────────────────────────
+} elseif (
+    strpos($fileType, 'text/') === 0 ||
+    in_array($ext, ['txt','php','js','css','html','htm','json','xml','md','py','sql','csv','ini','conf','log','sh','bat'])
+) {
     header('Content-Type: text/plain; charset=utf-8');
     readfile($filePath);
+
+// ── Unsupported ──────────────────────────────────────────────────
 } else {
-    // Generic preview - show file info
-    echo "<div style='padding: 20px; font-family: Arial, sans-serif;'>";
-    echo "<h3>File Preview</h3>";
-    echo "<p><strong>Name:</strong> " . htmlspecialchars($filename) . "</p>";
-    echo "<p><strong>Type:</strong> " . htmlspecialchars($fileType) . "</p>";
-    echo "<p><strong>Size:</strong> " . formatFileSize(filesize($filePath)) . "</p>";
-    echo "<p><strong>Modified:</strong> " . date('M d, Y H:i', filemtime($filePath)) . "</p>";
-    echo "<p>This file type cannot be previewed directly. <a href='download.php?path=" . urlencode($filePath) . "'>Download</a> to view.</p>";
+    header('Content-Type: text/html; charset=utf-8');
+    echo "<div style='padding:1.5rem;font-family:sans-serif'>";
+    echo "<p><strong>".htmlspecialchars($filename)."</strong></p>";
+    echo "<p>Type: ".htmlspecialchars($fileType)."</p>";
+    echo "<p>Size: ".number_format($fileSize)." bytes</p>";
+    echo "<p><a href='download.php?path=".urlencode($filePath)."'>Download</a> to view this file.</p>";
     echo "</div>";
 }
-?>
