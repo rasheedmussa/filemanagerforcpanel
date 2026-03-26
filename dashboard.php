@@ -1,33 +1,20 @@
 <?php
-// dashboard.php - Main file manager dashboard
+// dashboard.php
 require_once 'config.php';
 
-// Get current directory from URL parameter
 $currentDir = isset($_GET['dir']) ? trim($_GET['dir'], '/') : '';
 $currentPath = $currentDir ? "/$currentDir" : '';
 
-// Get current directory from URL parameter
-$currentDir = isset($_GET['dir']) ? trim($_GET['dir'], '/') : '';
-$currentPath = $currentDir ? "/$currentDir" : '';
-
-// Get files and folders from filesystem
 $files = getFilesFromDirectory($currentDir);
 
-// Sort files: folders first, then by name
 usort($files, function($a, $b) {
-    if ($a['is_folder'] != $b['is_folder']) {
-        return $b['is_folder'] - $a['is_folder'];
-    }
+    if ($a['is_folder'] != $b['is_folder']) return $b['is_folder'] - $a['is_folder'];
     return strcmp($a['name'], $b['name']);
 });
 
-// Calculate total size
 $totalSize = 0;
-foreach ($files as $file) {
-    $totalSize += $file['size'];
-}
+foreach ($files as $f) $totalSize += $f['size'];
 
-// Breadcrumb navigation
 $breadcrumbs = [];
 if ($currentDir) {
     $parts = explode('/', $currentDir);
@@ -38,156 +25,230 @@ if ($currentDir) {
     }
 }
 ?>
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Manager Dashboard</title>
+    <title>TemboDrive</title>
     <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
-    <div class="dashboard">
-        <header class="dashboard-header">
-            <div class="header-left">
-                <h1>File Manager</h1>
-                <div class="breadcrumb">
-                    <a href="dashboard.php">Home</a>
-                    <?php foreach ($breadcrumbs as $crumb): ?>
-                        <span>/</span>
-                        <a href="dashboard.php?dir=<?php echo urlencode($crumb['path']); ?>"><?php echo htmlspecialchars($crumb['name']); ?></a>
-                    <?php endforeach; ?>
+<div class="dashboard">
+
+    <!-- HEADER -->
+    <header class="dashboard-header">
+        <div class="header-left">
+            <div class="header-logo">
+                <div class="logo-icon">🐘</div>
+                <h1 data-i18n="appTitle">TemboDrive</h1>
+            </div>
+            <nav class="breadcrumb">
+                <a href="dashboard.php" data-i18n="home">Home</a>
+                <?php foreach ($breadcrumbs as $crumb): ?>
+                    <span class="sep">/</span>
+                    <a href="dashboard.php?dir=<?php echo urlencode($crumb['path']); ?>">
+                        <?php echo htmlspecialchars($crumb['name']); ?>
+                    </a>
+                <?php endforeach; ?>
+            </nav>
+        </div>
+        <div class="header-right">
+            <!-- Language toggle -->
+            <button class="ctrl-btn" id="langToggle" onclick="toggleLang()">
+                <span class="icon">🌐</span>
+                <span id="langLabel">SW</span>
+            </button>
+            <!-- Theme toggle -->
+            <button class="ctrl-btn" id="themeToggle" onclick="toggleTheme()">
+                <span class="icon" id="themeIcon">☀️</span>
+                <span id="themeLabel">Light</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="dashboard-content">
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+
+            <!-- Upload -->
+            <div class="sidebar-section">
+                <div class="sidebar-section-title" data-i18n="uploadTitle">Upload Files</div>
+                <div class="upload-area" id="uploadArea">
+                    <span class="upload-icon">☁️</span>
+                    <div class="upload-text-main" data-i18n="uploadMain">Drop files here</div>
+                    <div class="upload-text-sub" data-i18n="uploadSub">or click to browse</div>
+                    <input type="file" id="fileInput" multiple style="display:none">
+                </div>
+
+                <label class="custom-check">
+                    <input type="checkbox" id="folderUpload">
+                    <span data-i18n="uploadFolder">Upload Folder</span>
+                </label>
+
+                <div id="progressContainer" style="display:none;" class="progress-wrap">
+                    <div class="progress-track">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-label" id="progressText">0%</div>
                 </div>
             </div>
-            <div class="header-right">
-                <span>File Manager (Temporary Uploads)</span>
-            </div>
-        </header>
 
-        <div class="dashboard-content">
-            <div class="sidebar">
-                <div class="upload-section">
-                    <h3>Upload Files</h3>
-                    <div class="upload-area" id="uploadArea">
-                        <div class="upload-placeholder">
-                            <span>📁</span>
-                            <p>Drag & drop files here or click to browse</p>
-                            <input type="file" id="fileInput" multiple style="display: none;">
-                            <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Choose Files</button>
-                        </div>
-                    </div>
-                    
-                    <div class="upload-options">
-                        <label>
-                            <input type="checkbox" id="folderUpload"> Upload Folder
-                        </label>
-                    </div>
-                    
-                    <div class="progress-container" id="progressContainer" style="display: none;">
-                        <div class="progress-bar" id="progressBar"></div>
-                        <div class="progress-text" id="progressText">Uploading...</div>
-                    </div>
-                </div>
-
-                <div class="actions-section">
-                    <h3>Actions</h3>
-                    <button class="btn btn-secondary" onclick="createNewFolder()">Create Folder</button>
-                    <button class="btn btn-secondary" onclick="refreshFiles()">Refresh</button>
-                </div>
-
-                <div class="stats-section">
-                    <h3>Storage Info</h3>
-                    <p>Total Files: <?php echo count($files); ?></p>
-                    <p>Total Size: <?php echo formatFileSize($totalSize); ?></p>
+            <!-- Actions -->
+            <div class="sidebar-section">
+                <div class="sidebar-section-title" data-i18n="actionsTitle">Actions</div>
+                <div class="btn-actions">
+                    <button class="btn btn-primary" onclick="createNewFolder()">
+                        <span>📁</span> <span data-i18n="newFolder">New Folder</span>
+                    </button>
+                    <button class="btn btn-ghost" onclick="refreshFiles()">
+                        <span>🔄</span> <span data-i18n="refresh">Refresh</span>
+                    </button>
                 </div>
             </div>
 
-            <div class="main-content">
-                <div class="toolbar">
-                    <div class="search-box">
-                        <input type="text" id="searchInput" placeholder="Search files...">
-                    </div>
-                    <div class="sort-options">
-                        <select id="sortSelect">
-                            <option value="name">Sort by Name</option>
-                            <option value="date">Sort by Date</option>
-                            <option value="size">Sort by Size</option>
-                        </select>
-                    </div>
+            <!-- Stats -->
+            <div class="sidebar-section">
+                <div class="sidebar-section-title" data-i18n="storageTitle">Storage Info</div>
+                <div class="stat-item">
+                    <span class="stat-label" data-i18n="totalFiles">Total Files</span>
+                    <span class="stat-value"><?php echo count($files); ?></span>
                 </div>
+                <div class="stat-item">
+                    <span class="stat-label" data-i18n="totalSize">Total Size</span>
+                    <span class="stat-value"><?php echo formatFileSize($totalSize); ?></span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label" data-i18n="currentDir">Directory</span>
+                    <span class="stat-value">/<?php echo htmlspecialchars($currentDir ?: 'root'); ?></span>
+                </div>
+            </div>
 
-                <div class="file-list" id="fileList">
-                    <?php if (empty($files)): ?>
-                        <div class="empty-state">
-                            <span>📂</span>
-                            <p>No files in this directory</p>
-                        </div>
-                    <?php else: ?>
-                        <div class="file-header">
-                            <div class="file-name">Name</div>
-                            <div class="file-type">Type</div>
-                            <div class="file-size">Size</div>
-                            <div class="file-date">Modified</div>
-                            <div class="file-actions">Actions</div>
-                        </div>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main class="main-content">
+
+            <!-- Toolbar -->
+            <div class="toolbar">
+                <div class="search-wrap">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="searchInput" data-i18n-placeholder="searchPlaceholder" placeholder="Search files...">
+                </div>
+                <div class="sort-wrap">
+                    <select id="sortSelect">
+                        <option value="name" data-i18n="sortName">Sort by Name</option>
+                        <option value="date" data-i18n="sortDate">Sort by Date</option>
+                        <option value="size" data-i18n="sortSize">Sort by Size</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- File List -->
+            <div class="file-table-wrap">
+                <?php if (empty($files)): ?>
+                    <div class="empty-state">
+                        <div class="empty-icon">📂</div>
+                        <p data-i18n="noFiles">No files in this directory</p>
+                    </div>
+                <?php else: ?>
+                    <div class="file-header">
+                        <div data-i18n="colName">Name</div>
+                        <div data-i18n="colType">Type</div>
+                        <div data-i18n="colSize">Size</div>
+                        <div data-i18n="colDate">Modified</div>
+                        <div data-i18n="colActions">Actions</div>
+                    </div>
+                    <div class="file-list" id="fileList">
                         <?php foreach ($files as $index => $file): ?>
-                            <div class="file-item" data-index="<?php echo $index; ?>" data-name="<?php echo htmlspecialchars($file['name']); ?>" data-folder="<?php echo $file['is_folder']; ?>" data-path="<?php echo htmlspecialchars($file['path']); ?>">
-                                <div class="file-name">
-                                    <span class="file-icon"><?php echo getFileIcon($file['name'], $file['is_folder']); ?></span>
-                                    <?php if ($file['is_folder']): ?>
-                                        <a href="dashboard.php?dir=<?php echo urlencode($currentDir . ($currentDir ? '/' : '') . $file['name']); ?>" class="folder-link">
-                                            <?php echo htmlspecialchars($file['name']); ?>
-                                        </a>
-                                    <?php else: ?>
-                                        <span><?php echo htmlspecialchars($file['name']); ?></span>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="file-type"><?php echo $file['is_folder'] ? 'Folder' : htmlspecialchars($file['type']); ?></div>
-                                <div class="file-size"><?php echo $file['is_folder'] ? '-' : formatFileSize($file['size']); ?></div>
-                                <div class="file-date"><?php echo date('M d, Y H:i', $file['modified']); ?></div>
-                                <div class="file-actions">
-                                    <?php if (!$file['is_folder']): ?>
-                                        <button onclick="previewFile('<?php echo htmlspecialchars($file['path']); ?>')" title="Preview">👁️</button>
-                                        <button onclick="downloadFile('<?php echo htmlspecialchars($file['path']); ?>')" title="Download">⬇️</button>
-                                    <?php endif; ?>
-                                    <button onclick="renameFile(<?php echo $index; ?>, '<?php echo htmlspecialchars($file['name']); ?>', '<?php echo htmlspecialchars($file['path']); ?>')" title="Rename">✏️</button>
-                                    <button onclick="deleteFile('<?php echo htmlspecialchars($file['path']); ?>')" title="Delete">🗑️</button>
-                                </div>
+                        <div class="file-item"
+                             data-index="<?php echo $index; ?>"
+                             data-name="<?php echo htmlspecialchars($file['name']); ?>"
+                             data-folder="<?php echo (int)$file['is_folder']; ?>"
+                             data-path="<?php echo htmlspecialchars($file['path']); ?>"
+                             data-size="<?php echo $file['size']; ?>"
+                             data-date="<?php echo $file['modified']; ?>">
+
+                            <div class="file-name">
+                                <span class="file-icon"><?php echo getFileIcon($file['name'], $file['is_folder']); ?></span>
+                                <?php if ($file['is_folder']): ?>
+                                    <a href="dashboard.php?dir=<?php echo urlencode($currentDir . ($currentDir ? '/' : '') . $file['name']); ?>" class="folder-link">
+                                        <?php echo htmlspecialchars($file['name']); ?>
+                                    </a>
+                                <?php else: ?>
+                                    <span><?php echo htmlspecialchars($file['name']); ?></span>
+                                <?php endif; ?>
                             </div>
+
+                            <div class="file-type">
+                                <?php echo $file['is_folder'] ? '<span data-i18n="typeFolder">Folder</span>' : htmlspecialchars($file['type']); ?>
+                            </div>
+
+                            <div class="file-size">
+                                <?php echo $file['is_folder'] ? '—' : formatFileSize($file['size']); ?>
+                            </div>
+
+                            <div class="file-date">
+                                <?php echo date('d M Y, H:i', $file['modified']); ?>
+                            </div>
+
+                            <div class="file-actions">
+                                <?php if (!$file['is_folder']): ?>
+                                    <button class="icon-btn" onclick="previewFile('<?php echo htmlspecialchars($file['path']); ?>')" title="Preview">👁️</button>
+                                    <button class="icon-btn" onclick="downloadFile('<?php echo htmlspecialchars($file['path']); ?>')" title="Download">⬇️</button>
+                                <?php endif; ?>
+                                <button class="icon-btn" onclick="renameFile(<?php echo $index; ?>, '<?php echo addslashes($file['name']); ?>', '<?php echo addslashes($file['path']); ?>')" title="Rename">✏️</button>
+                                <button class="icon-btn danger" onclick="deleteFile('<?php echo addslashes($file['path']); ?>')" title="Delete">🗑️</button>
+                            </div>
+                        </div>
                         <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
+                    </div>
+                <?php endif; ?>
             </div>
-        </div>
-    </div>
 
-    <!-- Modals -->
-    <div id="previewModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('previewModal')">&times;</span>
-            <div id="previewContent"></div>
-        </div>
+        </main>
     </div>
+</div>
 
-    <div id="renameModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('renameModal')">&times;</span>
-            <h3>Rename File/Folder</h3>
-            <input type="text" id="renameInput">
-            <button onclick="confirmRename()">Rename</button>
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- RENAME MODAL -->
+<div id="renameModal" class="modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <span class="modal-title" data-i18n="renameTitle">Rename</span>
+            <button class="modal-close" onclick="closeModal('renameModal')">&times;</button>
         </div>
+        <input type="text" id="renameInput" class="modal-input" data-i18n-placeholder="renamePlaceholder">
+        <button class="btn btn-primary" style="width:100%" onclick="confirmRename()" data-i18n="renameBtn">Rename</button>
     </div>
+</div>
 
-    <div id="createFolderModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('createFolderModal')">&times;</span>
-            <h3>Create New Folder</h3>
-            <input type="text" id="folderNameInput" placeholder="Folder name">
-            <button onclick="confirmCreateFolder()">Create</button>
+<!-- CREATE FOLDER MODAL -->
+<div id="createFolderModal" class="modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <span class="modal-title" data-i18n="folderTitle">New Folder</span>
+            <button class="modal-close" onclick="closeModal('createFolderModal')">&times;</button>
         </div>
+        <input type="text" id="folderNameInput" class="modal-input" data-i18n-placeholder="folderPlaceholder">
+        <button class="btn btn-primary" style="width:100%" onclick="confirmCreateFolder()" data-i18n="folderBtn">Create</button>
     </div>
+</div>
 
-    <script src="assets/js/main.js"></script>
+<!-- PREVIEW MODAL -->
+<div id="previewModal" class="modal">
+    <div class="modal-box" style="max-width:820px">
+        <div class="modal-header">
+            <span class="modal-title" data-i18n="previewTitle">Preview</span>
+            <button class="modal-close" onclick="closeModal('previewModal')">&times;</button>
+        </div>
+        <div id="previewContent"></div>
+    </div>
+</div>
+
+<script src="assets/js/main.js"></script>
 </body>
 </html>
